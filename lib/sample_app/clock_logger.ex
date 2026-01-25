@@ -1,6 +1,6 @@
 defmodule SampleApp.ClockLogger do
   @moduledoc """
-  Logs time once per second.
+  Logs time once per tick interval.
   """
 
   @timezone_name "JST"
@@ -8,24 +8,40 @@ defmodule SampleApp.ClockLogger do
 
   @tick_interval_ms :timer.seconds(5)
 
-  def start do
-    spawn(fn -> tick_forever() end)
-    :ok
+  ## Public API
+
+  def start_link(opts \\ []) do
+    :gen_server.start_link({:local, __MODULE__}, __MODULE__, :ok, opts)
   end
 
-  defp tick_forever do
+  def stop do
+    :gen_server.stop(__MODULE__)
+  end
+
+  ## gen_server callbacks
+
+  def init(:ok) do
     print_local_time()
+    schedule_tick()
+    {:ok, %{}}
+  end
 
-    receive do
-      :stop ->
-        :ok
+  def handle_info(:tick, state) do
+    print_local_time()
+    schedule_tick()
+    {:noreply, state}
+  end
 
-      _ ->
-        tick_forever()
-    after
-      @tick_interval_ms ->
-        tick_forever()
-    end
+  def handle_info(_msg, state) do
+    {:noreply, state}
+  end
+
+  def terminate(_reason, _state), do: :ok
+
+  ## Internals
+
+  defp schedule_tick do
+    Process.send_after(self(), :tick, @tick_interval_ms)
   end
 
   defp print_local_time do

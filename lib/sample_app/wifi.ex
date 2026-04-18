@@ -49,6 +49,11 @@ defmodule SampleApp.WiFi do
 
   def handle_sta_connected, do: IO.puts("wifi: connected to AP")
   def handle_sta_disconnected, do: IO.puts("wifi: disconnected from AP")
-  def handle_sta_got_ip(ip_info), do: IO.puts("wifi: got IP #{inspect(ip_info)}")
+
+  def handle_sta_got_ip(ip_info) do
+    IO.puts("wifi: got IP #{inspect(ip_info)}")
+    SampleApp.DistErl.maybe_start(ip_info)
+  end
+
   def handle_sntp_synchronized(timeval), do: IO.puts("sntp: synced #{inspect(timeval)}")
 end

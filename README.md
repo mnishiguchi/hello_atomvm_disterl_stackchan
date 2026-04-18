@@ -1,155 +1,207 @@
-# AtomVM Elixir Firmware Example: Wi-Fi SNTP Clock for ESP32
+<!--
+SPDX-FileCopyrightText: 2026 piyopiyo.ex members
 
-A minimal AtomVM project that:
+SPDX-License-Identifier: Apache-2.0
+-->
 
-- Provisions Wi-Fi credentials via environment variables
-- Saves them to NVS (non-volatile storage)
-- Connects to Wi-Fi and syncs time via SNTP
-- Logs local time to the console periodically
+# hello_atomvm_disterl
 
-## Requirements
+ESP32 上で Wi-Fi 接続、SNTP による時刻同期、分散 Erlang を試すための AtomVM サンプルです。
 
-For the most up-to-date ESP32 hardware and software requirements,
-refer to the [official AtomVM Getting Started Guide](https://doc.atomvm.org/latest/getting-started-guide.html).
+このサンプルでは、次の動作を確認できます。
 
-### Hardware
+- 環境変数から Wi-Fi 情報を受け取って NVS に保存する
+- Wi-Fi 接続後に SNTP で時刻同期する
+- IP アドレス取得後に分散 Erlang ノードを起動する
+- 定期的にローカル時刻をシリアルへ出力する
+- ホスト PC の IEx から `Node.connect/1` や `:erpc.call/4` で接続する
 
-- An ESP32 development board supported by AtomVM (e.g. ESP32-DevKitC, Seeed XIAO-ESP32S3)
+現在は AtomVM 0.7 系の機能が必要なため、`mix atomvm.esp32.install` ではなく、このリポジトリーに含まれているカスタム AtomVM イメージを使ってください。
 
-### Software
+参考情報:
 
-- Erlang/OTP 27
-- Elixir 1.17.x
-- AtomVM toolchain (via [`exatomvm`](https://github.com/atomvm/exatomvm))
-- A serial monitor tool such as:
-  - `picocom`
-  - `screen`
-  - `minicom`
+- AtomVM の `main` ドキュメントには分散 Erlang の専用ガイドがあります
+  - https://doc.atomvm.org/main/distributed-erlang.html
+- AtomVM の unreleased changelog には、distribution 関連の追加や修正が含まれています
+  - https://doc.atomvm.org/main/CHANGELOG.html
 
-### Network
+補足:
 
-- A 2.4 GHz Wi-Fi network
-- Internet access (required for SNTP time synchronization)
+- 2026-04-23 時点では、安定版 `release-0.6` 系ドキュメントには分散 Erlang の公開ガイドが見当たりませんでした
+- そのため、この README では「`disterl` を使うには unreleased 側の AtomVM が必要」という前提で案内しています
 
-## Quickstart
+## 対象機材
+
+- AtomVM が対応する `ESP32` 開発ボード
+- AtomVM が対応する `ESP32-S3` 開発ボード
+
+このリポジトリーでは現在、`atomvm-esp32-elixir.img` と `atomvm-esp32s3-elixir.img` を同梱しています。
+
+## 対象開発環境
+
+本サンプルでは、次の環境を想定しています。
+
+- macOS または Linux
+- データ転送に対応した USB ケーブル
+- Elixir
+- `mix` (Elixir プロジェクトのビルドや書き込みに使うコマンド)
+- `esptool` (`ESP32` / `ESP32-S3` にイメージを書き込むためのツール)
+- `tio` (シリアルログを確認するためのツール)
+
+## 使い方
+
+このディレクトリーに移動します。
 
 ```sh
-# Clone the example AtomVM project with Wi-Fi + SNTP support
-git clone https://github.com/mnishiguchi/hello_atomvm_wifi_sta.git
-
-# Enter the project directory
-cd hello_atomvm_wifi_sta
-
-# Fetch Elixir dependencies
-mix deps.get
-
-# Flash the AtomVM runtime to your ESP32 (one-time setup)
-mix atomvm.esp32.install
-
-# Set your Wi-Fi credentials as environment variables
-export ATOMVM_WIFI_SSID="your-ssid"
-export ATOMVM_WIFI_PASSPHRASE="your-passphrase"
-
-# Build and flash the application firmware to the device
-mix atomvm.esp32.flash --port /dev/ttyACM0
-
-# Open a serial monitor to view runtime logs
-picocom /dev/ttyACM0
+cd hello_atomvm_disterl
 ```
 
-Adjust the serial port if needed (for example `/dev/ttyUSB0`).
-
-## Fetch dependencies
-
-From the project root:
+依存関係を取得します。
 
 ```sh
 mix deps.get
 ```
 
-## Install AtomVM (one-time)
+このサンプル用の AtomVM イメージがまだ書き込まれていない場合は、先に次を実行してください。
+すでに書き込み済みの場合は、この手順は不要です。
 
-Flash the AtomVM runtime to your ESP32:
+このリポジトリーでは現在 `ESP32` 用と `ESP32-S3` 用のイメージを同梱しています。書き込み例は次のとおりです。
+
+ESP32 の例:
 
 ```sh
-mix atomvm.esp32.install
+# フラッシュ全体を消去して、まっさらな状態にする
+esptool --chip esp32 --port /dev/ttyACM0 erase-flash
+
+# このサンプル用の AtomVM イメージを 0x1000 から書き込む
+esptool --chip esp32 --port /dev/ttyACM0 write-flash 0x1000 atomvm-esp32-elixir.img
 ```
 
-## Set Wi-Fi credentials (build-time provisioning)
+ESP32-S3 の例:
 
-Export your Wi-Fi credentials as environment variables before building/flashing:
+```sh
+# フラッシュ全体を消去して、まっさらな状態にする
+esptool --chip esp32s3 --port /dev/ttyACM0 erase-flash
+
+# このサンプル用の AtomVM イメージを 0x0 から書き込む
+esptool --chip esp32s3 --port /dev/ttyACM0 write-flash 0x0 atomvm-esp32s3-elixir.img
+```
+
+これらのオフセットは AtomVM 公式ドキュメントの Getting Started Guide にある bootloader start address に合わせています。
+
+- https://doc.atomvm.org/main/getting-started-guide.html
+
+アプリケーションを書き込む前に Wi-Fi 情報を設定します。
 
 ```sh
 export ATOMVM_WIFI_SSID="your-ssid"
 export ATOMVM_WIFI_PASSPHRASE="your-passphrase"
 ```
 
-Optional:
+必要に応じて、起動のたびに NVS 上の Wi-Fi 情報を上書きできます。
 
 ```sh
-# If set (any non-empty value), overwrite NVS credentials on every boot
 export ATOMVM_WIFI_FORCE=true
 ```
 
-## Build and flash the application
+アプリケーションを書き込みます。
 
 ```sh
-mix clean
 mix atomvm.esp32.flash --port /dev/ttyACM0
 ```
 
-During the first boot, the firmware will:
+接続先は必要に応じて読み替えてください。
 
-- Store Wi-Fi credentials in NVS
-- Connect to the access point (STA mode)
-- Synchronize time via SNTP
-- Start logging local time periodically
+例:
 
-## Monitor logs
+- Linux: `/dev/ttyACM0`, `/dev/ttyUSB0`
+- macOS: `/dev/cu.usbmodemXXXX`, `/dev/cu.usbserialXXXX`
 
-Open a serial console:
+接続先が分からない場合は、次で確認できます。
 
 ```sh
-picocom /dev/ttyACM0
+tio --list
 ```
 
-You should see logs like:
+## 動作確認
+
+別端末でシリアルログを開きます。
+
+```sh
+tio /dev/ttyACM0
+```
+
+Wi-Fi 接続に成功すると、次のようなログが表示されます。
 
 ```text
 wifi: first-time provision (stored Wi-Fi credentials in NVS)
-wifi: started
 wifi: connected to AP
-wifi: got IP {192,168,1,123}
+wifi: got IP {{192,168,1,123},{255,255,255,0},{192,168,1,1}}
+disterl: started
+disterl: node :"piyopiyo@192.168.1.123"
+disterl: cookie <<"AtomVM">>
+disterl: registered process :disterl
 sntp: synced {tv_sec, tv_usec}
-time: 2026-01-23 21:42:01 (JST)
+Date: 2026/01/23 21:42:01 (1737636121000ms) JST
 ```
 
-## Firmware provisioning options
+## リモート接続
 
-Wi-Fi credentials can be provisioned at build time using environment variables.
-On boot, they are stored in ESP32 NVS and reused on subsequent boots.
+ESP32 側でノード名が表示されたら、ホスト PC で IEx をノード名付きで起動します。
+`YOUR_HOST_LAN_IP` には、ESP32 と同じネットワーク上にあるホスト PC の IP アドレスを指定してください。
 
-### Environment variables
+```sh
+# 必要ならホスト PC の IP アドレスを確認
+hostname -I
 
-| Environment variable     | NVS key           | Description                                   |
-| ------------------------ | ----------------- | --------------------------------------------- |
-| `ATOMVM_WIFI_SSID`       | `wifi_ssid`       | Wi-Fi SSID to store in NVS                    |
-| `ATOMVM_WIFI_PASSPHRASE` | `wifi_passphrase` | Wi-Fi passphrase (optional for open networks) |
-| `ATOMVM_WIFI_FORCE`      | —                 | If set, forces credentials overwrite at boot  |
+# ホスト側のノードを起動
+iex --name host@YOUR_HOST_LAN_IP --cookie AtomVM
+```
 
-### Provisioning behavior
+次に IEx 上で ESP32 ノードへ接続します。`YOUR_ESP32_IP` には、シリアルログに表示された ESP32 側の IP アドレスを指定してください。
 
-- **First boot (NVS empty)**
-  - If `ATOMVM_WIFI_SSID` is set, credentials are written to NVS.
+```elixir
+# 接続先のノード名
+device = :"piyopiyo@YOUR_ESP32_IP"
 
-- **Subsequent boots**
-  - Stored NVS credentials are reused.
+# 接続を試す
+Node.connect(device)
 
-- **Forced provisioning** (`ATOMVM_WIFI_FORCE` set)
-  - NVS credentials are overwritten on every boot.
-  - If no passphrase is provided, any existing passphrase is removed (open network).
+# 接続済みノードを確認
+Node.list(:connected)
 
-This allows you to:
+# リモート関数呼び出しを試す
+:erpc.call(device, SampleApp.DistErl, :hello, [])
 
-- Flash once and reboot freely without re-exporting credentials
-- Re-provision Wi-Fi by flashing again with `ATOMVM_WIFI_FORCE=true`
+# メッセージ送信を試す
+send({:disterl, device}, :demo_message)
+```
+
+期待される動作:
+
+- `Node.connect(device)` が `true` を返す
+- `Node.list(:connected)` に `device` が含まれる
+- `:erpc.call(device, SampleApp.DistErl, :hello, [])` が `{:hello_from_atomvm, :"piyopiyo@192.168.1.123"}` のような値を返す
+- `send({:disterl, device}, :demo_message)` により ESP32 側で `disterl: received :demo_message` が表示される
+
+## Wi-Fi プロビジョニング
+
+Wi-Fi 情報は起動時に NVS へ保存され、次回以降の起動でも再利用されます。
+
+### 環境変数
+
+| 環境変数 | NVS キー | 説明 |
+| -------- | -------- | ---- |
+| `ATOMVM_WIFI_SSID` | `wifi_ssid` | 保存する Wi-Fi SSID |
+| `ATOMVM_WIFI_PASSPHRASE` | `wifi_passphrase` | 保存する Wi-Fi パスフレーズ。オープンネットワークでは省略可 |
+| `ATOMVM_WIFI_FORCE` | — | 設定されていると、起動時に認証情報を上書きする |
+
+### 挙動
+
+- 初回起動時
+  - `ATOMVM_WIFI_SSID` が設定されていれば NVS に保存される
+- 2 回目以降の起動
+  - NVS に保存済みの情報を再利用する
+- `ATOMVM_WIFI_FORCE` を設定した場合
+  - 起動のたびに NVS の認証情報を上書きする
+  - パスフレーズ未指定で上書きすると、既存のパスフレーズは削除される

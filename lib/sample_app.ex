@@ -5,6 +5,7 @@ defmodule SampleApp do
 
   def start do
     SampleApp.Provision.maybe_provision()
+    {:ok, _} = SampleApp.DistErl.start_link()
     {:ok, _} = SampleApp.WiFi.start_link()
     {:ok, _} = SampleApp.ClockLogger.start_link()
 

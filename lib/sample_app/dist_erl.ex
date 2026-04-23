@@ -1,14 +1,12 @@
 defmodule SampleApp.DistErl do
-  @moduledoc """
-  Starts Distributed Erlang once Wi-Fi has an IPv4 address.
-  """
+  @moduledoc false
 
   use GenServer
 
   @compile {:no_warn_undefined, :epmd}
   @compile {:no_warn_undefined, :net_kernel}
 
-  @cookie "AtomVM"
+  @cookie <<"AtomVM">>
   @listen_port 9100
   @node_base "piyopiyo"
 
@@ -23,6 +21,22 @@ defmodule SampleApp.DistErl do
   def hello do
     IO.puts("disterl: hello/0 invoked")
     {:hello_from_atomvm, :erlang.node()}
+  end
+
+  def set_expression(expression) do
+    SampleApp.FaceServer.set_expression(expression)
+  end
+
+  def set_gaze(horizontal, vertical) do
+    SampleApp.FaceServer.set_gaze(horizontal, vertical)
+  end
+
+  def set_mouth_open(ratio) do
+    SampleApp.FaceServer.set_mouth_open(ratio)
+  end
+
+  def get_face_state do
+    SampleApp.FaceServer.get_face_state()
   end
 
   @impl GenServer

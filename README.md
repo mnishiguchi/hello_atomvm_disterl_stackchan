@@ -4,56 +4,56 @@ SPDX-FileCopyrightText: 2026 piyopiyo.ex members
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# hello_atomvm_disterl
+# hello_atomvm_disterl_stackchan
 
-ESP32 上で Wi-Fi 接続、SNTP による時刻同期、分散 Erlang を試すための AtomVM サンプルです。
+[LovyanGFX](https://github.com/lovyan03/LovyanGFX) を組み込んだ専用の AtomVM イメージを使って、Stack-chan 風の顔アニメーションを表示するサンプルです。
 
 このサンプルでは、次の動作を確認できます。
 
+- AtomLGFX で液晶に顔を描画する
+- タッチ入力に応じて視線と口の開き具合を変える
 - 環境変数から Wi-Fi 情報を受け取って NVS に保存する
-- Wi-Fi 接続後に SNTP で時刻同期する
-- IP アドレス取得後に分散 Erlang ノードを起動する
-- 定期的にローカル時刻をシリアルへ出力する
-- ホスト PC の IEx から `Node.connect/1` や `:erpc.call/4` で接続する
+- Wi-Fi 接続後に Distributed Erlang ノードを起動する
+- 別端末の IEx から表情や視線、口の開き具合を変更する
 
-現在は AtomVM 0.7 系の機能が必要なため、`mix atomvm.esp32.install` ではなく、このリポジトリーに含まれているカスタム AtomVM イメージを使ってください。
+現在は `mix atomvm.esp32.install` ではなく、このリポジトリーに含まれているカスタム AtomVM イメージを使ってください。
 
-参考情報:
-
-- AtomVM の `main` ドキュメントには分散 Erlang の専用ガイドがあります
-  - https://doc.atomvm.org/main/distributed-erlang.html
-- AtomVM の unreleased changelog には、distribution 関連の追加や修正が含まれています
-  - https://doc.atomvm.org/main/CHANGELOG.html
-
-補足:
-
-- 2026-04-23 時点では、安定版 `release-0.6` 系ドキュメントには分散 Erlang の公開ガイドが見当たりませんでした
-- そのため、この README では「`disterl` を使うには unreleased 側の AtomVM が必要」という前提で案内しています
+<p align="center">
+  <img alt="lovyangfx" width="320" src="https://github.com/user-attachments/assets/47e24bd0-ea04-4f8e-bde6-708dc2fe6b35">
+</p>
 
 ## 対象機材
 
 - AtomVM が対応する `ESP32` 開発ボード
 - AtomVM が対応する `ESP32-S3` 開発ボード
+- データ転送に対応した USB ケーブル
 
-このリポジトリーでは現在、`atomvm-esp32-elixir.img` と `atomvm-esp32s3-elixir.img` を同梱しています。
+このリポジトリーには現在、次の AtomVM イメージを同梱しています。
+
+- `atomvm-esp32-elixir.img`
+- `atomvm-esp32s3-elixir.img`
+
+補足:
+
+- 顔表示のサンプル設定は `M5Stack Core2` 向けの AtomLGFX プリセットを使っています
+- 別の表示ハードウェアで動かす場合は、[`lib/sample_app/face_server.ex`](/home/mnishiguchi/Projects/atomvm/hello_atomvm_disterl_stackchan/lib/sample_app/face_server.ex) の open options を調整してください
 
 ## 対象開発環境
 
 本サンプルでは、次の環境を想定しています。
 
 - macOS または Linux
-- データ転送に対応した USB ケーブル
 - Elixir
-- `mix` (Elixir プロジェクトのビルドや書き込みに使うコマンド)
-- `esptool` (`ESP32` / `ESP32-S3` にイメージを書き込むためのツール)
-- `tio` (シリアルログを確認するためのツール)
+- `mix`
+- `esptool`
+- `tio`
 
 ## 使い方
 
 このディレクトリーに移動します。
 
 ```sh
-cd hello_atomvm_disterl
+cd hello_atomvm_disterl_stackchan
 ```
 
 依存関係を取得します。
@@ -64,8 +64,6 @@ mix deps.get
 
 このサンプル用の AtomVM イメージがまだ書き込まれていない場合は、先に次を実行してください。
 すでに書き込み済みの場合は、この手順は不要です。
-
-このリポジトリーでは現在 `ESP32` 用と `ESP32-S3` 用のイメージを同梱しています。書き込み例は次のとおりです。
 
 ESP32 の例:
 
@@ -87,11 +85,8 @@ esptool --chip esp32s3 --port /dev/ttyACM0 erase-flash
 esptool --chip esp32s3 --port /dev/ttyACM0 write-flash 0x0 atomvm-esp32s3-elixir.img
 ```
 
-これらのオフセットは AtomVM 公式ドキュメントの Getting Started Guide にある bootloader start address に合わせています。
-
-- https://doc.atomvm.org/main/getting-started-guide.html
-
-アプリケーションを書き込む前に Wi-Fi 情報を設定します。
+Wi-Fi と Distributed Erlang も使う場合は、アプリケーションを書き込む前に Wi-Fi 情報を設定します。
+Wi-Fi を使わずに顔表示だけを試す場合は、この手順を省略できます。
 
 ```sh
 export ATOMVM_WIFI_SSID="your-ssid"
@@ -131,7 +126,11 @@ tio --list
 tio /dev/ttyACM0
 ```
 
-Wi-Fi 接続に成功すると、次のようなログが表示されます。
+書き込み後、画面上で顔が動いて表示されれば成功です。
+
+Wi-Fi 情報を設定している場合は、あわせて Wi-Fi 接続と Distributed Erlang の起動ログも表示されます。
+
+例:
 
 ```text
 wifi: first-time provision (stored Wi-Fi credentials in NVS)
@@ -142,38 +141,36 @@ disterl: node :"piyopiyo@192.168.1.123"
 disterl: cookie <<"AtomVM">>
 disterl: registered process :disterl
 sntp: synced {tv_sec, tv_usec}
-Date: 2026/01/23 21:42:01 (1737636121000ms) JST
 ```
 
-## リモート接続
+Wi-Fi 情報を設定せずに書き込んだ場合でも、顔表示そのものは動作します。
+その場合、Wi-Fi と Distributed Erlang は起動せず、シリアルログにその旨が表示されます。
 
-ESP32 側でノード名が表示されたら、ホスト PC で IEx をノード名付きで起動します。
-`YOUR_HOST_LAN_IP` には、ESP32 と同じネットワーク上にあるホスト PC の IP アドレスを指定してください。
+## リモート操作
+
+Wi-Fi と Distributed Erlang が起動していれば、別端末の IEx から顔を変更できます。
+
+まず、開発端末側で IEx をノード名付きで起動します。
+`YOUR_HOST_LAN_IP` には、ESP32 と同じネットワーク上の開発端末の IP アドレスを指定してください。
 
 ```sh
-# 必要ならホスト PC の IP アドレスを確認
-hostname -I
-
-# ホスト側のノードを起動
 iex --name host@YOUR_HOST_LAN_IP --cookie AtomVM
 ```
 
-次に IEx 上で ESP32 ノードへ接続します。`YOUR_ESP32_IP` には、シリアルログに表示された ESP32 側の IP アドレスを指定してください。
+次に IEx 上で ESP32 ノードへ接続します。
+`YOUR_ESP32_IP` には、シリアルログに表示された IP アドレスを指定してください。
 
 ```elixir
-# 接続先のノード名
 device = :"piyopiyo@YOUR_ESP32_IP"
 
-# 接続を試す
 Node.connect(device)
-
-# 接続済みノードを確認
 Node.list(:connected)
 
-# リモート関数呼び出しを試す
 :erpc.call(device, SampleApp.DistErl, :hello, [])
-
-# メッセージ送信を試す
+:erpc.call(device, SampleApp.DistErl, :set_expression, [:happy])
+:erpc.call(device, SampleApp.DistErl, :set_gaze, [0.8, -0.4])
+:erpc.call(device, SampleApp.DistErl, :set_mouth_open, [0.9])
+:erpc.call(device, SampleApp.DistErl, :get_face_state, [])
 send({:disterl, device}, :demo_message)
 ```
 
@@ -183,6 +180,15 @@ send({:disterl, device}, :demo_message)
 - `Node.list(:connected)` に `device` が含まれる
 - `:erpc.call(device, SampleApp.DistErl, :hello, [])` が `{:hello_from_atomvm, :"piyopiyo@192.168.1.123"}` のような値を返す
 - `send({:disterl, device}, :demo_message)` により ESP32 側で `disterl: received :demo_message` が表示される
+
+表情には次を指定できます。
+
+- `:neutral`
+- `:happy`
+- `:angry`
+- `:sad`
+- `:doubt`
+- `:sleepy`
 
 ## Wi-Fi プロビジョニング
 
@@ -205,3 +211,10 @@ Wi-Fi 情報は起動時に NVS へ保存され、次回以降の起動でも再
 - `ATOMVM_WIFI_FORCE` を設定した場合
   - 起動のたびに NVS の認証情報を上書きする
   - パスフレーズ未指定で上書きすると、既存のパスフレーズは削除される
+
+## 参考情報
+
+- AtomVM Distributed Erlang guide
+  - https://doc.atomvm.org/main/distributed-erlang.html
+- AtomVM Getting Started Guide
+  - https://doc.atomvm.org/main/getting-started-guide.html

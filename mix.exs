@@ -26,8 +26,7 @@ defmodule SampleApp.MixProject do
   defp deps do
     [
       {:exatomvm, github: "atomvm/exatomvm"},
-      {:pythonx, "~> 0.4.0", runtime: false},
-      {:req, "~> 0.5.0", runtime: false}
+      {:atomlgfx, github: "mnishiguchi/atomlgfx", branch: "main"}
     ]
   end
 end
